@@ -16,26 +16,48 @@ namespace VideoProcessor
             TraceWriter log)
         {
 
+            string transcodedLocation = null;
+            string thumbnailLocation = null;
+            string withIntroLocation = null;
+
             var videoLoaction = ctx.GetInput<string>();
+            try
+            {
+                if (!ctx.IsReplaying)
+                    log.Info("About to call transcode video activity");
 
-            if (!ctx.IsReplaying)
-                log.Info("About to call transcode video activity");
+                transcodedLocation = await
+                                         ctx.CallActivityAsync<string>("A_TranscodeVideo", videoLoaction);
 
-            var transcodedLocation = await
-                                     ctx.CallActivityAsync<string>("A_TranscodeVideo", videoLoaction);
+                if (!ctx.IsReplaying)
+                    log.Info("About to call extract thumbnail");
 
-            if (!ctx.IsReplaying)
-                log.Info("About to call extract thumbnail");
+                thumbnailLocation = await
+                                        ctx.CallActivityAsync<string>("A_ExtractThumbnail", transcodedLocation);
 
-            var thumbnailLocation = await
-                                    ctx.CallActivityAsync<string>("A_ExtractThumbnail", transcodedLocation);
+                if (!ctx.IsReplaying)
+                    log.Info("About to call prependIntro");
 
-            if (!ctx.IsReplaying)
-                log.Info("About to call prependIntro");
+                withIntroLocation = await
+                                        ctx.CallActivityAsync<string>("A_PrependIntro", transcodedLocation);
+            }
+            catch (Exception e)
+            {
+                if (!ctx.IsReplaying)
+                    log.Info($"Caught an error from an activity: {e.Message}");
 
-            var withIntroLocation = await
-                                    ctx.CallActivityAsync<string>("A_PrependIntro", transcodedLocation);
+                await
+                    ctx.CallActivityAsync<string>("A_Cleanup",
+                    new [] { transcodedLocation , thumbnailLocation , withIntroLocation }
+                    );
 
+
+                return new
+                {
+                    Error = "Failed to process upload video",
+                    Message = e.Message
+                };
+            }
             return new
             {
                 Transcoded = transcodedLocation,
