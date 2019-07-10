@@ -16,18 +16,33 @@ namespace VideoProcessor
             TraceWriter log)
         {
 
+            var videoLoaction = ctx.GetInput<string>();
+
+            if (!ctx.IsReplaying)
+                log.Info("About to call transcode video activity");
+
             string transcodedLocation = null;
             string thumbnailLocation = null;
-            string withIntroLocation = null;
+            string withIntroLocation = null;            
 
-            var videoLoaction = ctx.GetInput<string>();
             try
             {
-                if (!ctx.IsReplaying)
-                    log.Info("About to call transcode video activity");
+                var bitRates = new[] { 1000, 2000, 3000, 4000 };
+                var transcodeTasks = new List<Task<VideoFileInfo>>();
 
-                transcodedLocation = await
-                                         ctx.CallActivityAsync<string>("A_TranscodeVideo", videoLoaction);
+                foreach (var bitRate in bitRates)
+                {
+                    var info = new VideoFileInfo() { Location = videoLoaction, BitRate = bitRate };
+                    var task = ctx.CallActivityAsync<VideoFileInfo>("A_TranscodeVideo", info);
+                    transcodeTasks.Add(task);
+                }
+
+                var transcodeResults = await Task.WhenAll(transcodeTasks);
+
+                transcodedLocation = transcodeResults
+                                    .OrderByDescending(r => r.BitRate)
+                                    .Select(r => r.Location)
+                                    .First();
 
                 if (!ctx.IsReplaying)
                     log.Info("About to call extract thumbnail");
