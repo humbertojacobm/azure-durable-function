@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace VideoProcessor
@@ -54,7 +55,24 @@ namespace VideoProcessor
                     VideoLocation = withIntroLocation
                 });
 
-                approvalResult = await ctx.WaitForExternalEvent<string>("ApprovalResult");
+                using (var cts = new CancellationTokenSource())
+                {
+                    var timeoutAt = ctx.CurrentUtcDateTime.AddSeconds(30);
+                    var timeoutTask = ctx.CreateTimer(timeoutAt, cts.Token);
+                    var approvalTask = ctx.WaitForExternalEvent<string>("ApprovalResult");
+
+                    var winner = await Task.WhenAny(approvalTask, timeoutTask);
+                    if (winner == approvalTask)
+                    {
+                        approvalResult = approvalTask.Result;
+                        cts.Cancel();
+                    }
+                    else
+                    {
+                        approvalResult = "Timed Out";
+                    }
+
+                }                
 
                 if (approvalResult == "Approved")
                 {
