@@ -135,5 +135,23 @@ namespace VideoProcessor
             return transcodeResults;
 
         }
+
+        [FunctionName("O_PeriodicTask")]
+        public static async Task<int> PeriodicTask(
+           [OrchestrationTrigger] DurableOrchestrationContext ctx,
+           TraceWriter log
+        )
+        {
+            var timesRun = ctx.GetInput<int>();
+            timesRun++;
+            if (!ctx.IsReplaying)
+                log.Info($"Starting the PeriodicTask activity {ctx.InstanceId}, {timesRun}");
+            await ctx.CallActivityAsync("A_PeriodicActivity", timesRun);
+            var nextRun = ctx.CurrentUtcDateTime.AddSeconds(30);
+            await ctx.CreateTimer(nextRun, CancellationToken.None);
+            ctx.ContinueAsNew(timesRun);
+            return timesRun;
+        }
+
     }
 }
